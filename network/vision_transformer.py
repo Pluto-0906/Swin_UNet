@@ -21,7 +21,7 @@ from .swin_unet_v2 import SwinTransformerSys
 logger = logging.getLogger(__name__)
 
 class SwinUnet(nn.Module):
-    def __init__(self, config, img_size=224, num_classes=21843, zero_head=False, vis=False):
+    def __init__(self, config, img_size=256, num_classes=21843, zero_head=False, vis=False):
         super(SwinUnet, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
@@ -45,15 +45,17 @@ class SwinUnet(nn.Module):
                                 use_checkpoint=config.TRAIN.USE_CHECKPOINT)
 
     def forward(self, x):
+        # expand to 3 dim
         if x.size()[1] == 1:
             x = x.repeat(1,3,1,1)
         logits = self.swin_unet(x)
         return logits
 
+    # load pretrained model
     def load_from(self, config):
         pretrained_path = config.MODEL.PRETRAIN_CKPT
         if pretrained_path is not None:
-            print("pretrained_path:{}".format(pretrained_path))
+            print(f"pretrained_path:{pretrained_path}")
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             pretrained_dict = torch.load(pretrained_path, map_location=device)
             if "model"  not in pretrained_dict:
@@ -61,7 +63,7 @@ class SwinUnet(nn.Module):
                 pretrained_dict = {k[17:]:v for k,v in pretrained_dict.items()}
                 for k in list(pretrained_dict.keys()):
                     if "output" in k:
-                        print("delete key:{}".format(k))
+                        print(f"delete key:{k}")
                         del pretrained_dict[k]
                 msg = self.swin_unet.load_state_dict(pretrained_dict,strict=False)
                 # print(msg)
@@ -74,16 +76,15 @@ class SwinUnet(nn.Module):
             for k, v in pretrained_dict.items():
                 if "layers." in k:
                     current_layer_num = 3-int(k[7:8])
-                    current_k = "layers_up." + str(current_layer_num) + k[8:]
+                    current_k = f"layers_up.{str(current_layer_num)}{k[8:]}"
                     full_dict.update({current_k:v})
             for k in list(full_dict.keys()):
-                if k in model_dict:
-                    if full_dict[k].shape != model_dict[k].shape:
-                        print("delete:{};shape pretrain:{};shape model:{}".format(k,v.shape,model_dict[k].shape))
-                        del full_dict[k]
+                if k in model_dict and full_dict[k].shape != model_dict[k].shape:
+                    print(f"delete:{k};shape pretrain:{v.shape};shape model:{model_dict[k].shape}")
+                    del full_dict[k]
 
             msg = self.swin_unet.load_state_dict(full_dict, strict=False)
-            # print(msg)
+                # print(msg)
         else:
             print("none pretrain")
  

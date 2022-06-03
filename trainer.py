@@ -16,8 +16,8 @@ from utils import DiceLoss
 from torchvision import transforms
 from utils import test_single_volume
 
-def trainer_synapse(args, model, snapshot_path):
-    from datasets.dataset_synapse import Synapse_dataset, RandomGenerator
+def trainer_spine(args, model, snapshot_path):
+    from datasets.dataset_spine import Spine_Dataset, RandomGenerator
     logging.basicConfig(filename=snapshot_path + "/log.txt", level=logging.INFO,
                         format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))

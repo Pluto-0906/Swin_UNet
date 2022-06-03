@@ -1,10 +1,3 @@
-# --------------------------------------------------------
-# Swin Transformer
-# Copyright (c) 2021 Microsoft
-# Licensed under The MIT License [see LICENSE for details]
-# Written by Ze Liu
-# --------------------------------------------------------'
-
 import os
 import yaml
 from yacs.config import CfgNode as CN
@@ -79,7 +72,7 @@ _C.MODEL.SWIN.FINAL_UPSAMPLE= "expand_first"
 # -----------------------------------------------------------------------------
 _C.TRAIN = CN()
 _C.TRAIN.START_EPOCH = 0
-_C.TRAIN.EPOCHS = 300
+_C.TRAIN.EPOCHS = 100
 _C.TRAIN.WARMUP_EPOCHS = 20
 _C.TRAIN.WEIGHT_DECAY = 0.05
 _C.TRAIN.BASE_LR = 5e-4
@@ -182,7 +175,7 @@ def _update_config_from_file(config, cfg_file):
             _update_config_from_file(
                 config, os.path.join(os.path.dirname(cfg_file), cfg)
             )
-    print('=> merge config from {}'.format(cfg_file))
+    print(f'=> merge config from {cfg_file}')
     config.merge_from_file(cfg_file)
     config.freeze()
 

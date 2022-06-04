@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms
 from .augmentation import Compose, RandomFlip_LR, RandomFlip_UD, RandomRotate
 
 
@@ -24,6 +25,11 @@ class Spine_Dataset(Dataset):
 
     @staticmethod
     def preprocess(pil_img):
+        # resize the img and label to (224, 224)
+        resize = transforms.Resize([224,244])
+        img = resize(img)
+        label = resize(label)
+
         img_ndarray = np.asarray(pil_img)
 
         if img_ndarray.ndim == 2:
@@ -58,7 +64,7 @@ class Spine_Dataset(Dataset):
 
         img = self.load(img_file[0])
         label = self.load(label_file[0])
-
+        
         img = self.preprocess(img)
         label = self.preprocess(label)
 

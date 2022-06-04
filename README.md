@@ -1,4 +1,4 @@
-# Swin-Unet
+# Swin-UnetV2
 The codes for the work "Swin-Unet: Unet-like Pure Transformer for Medical Image Segmentation"(https://arxiv.org/abs/2105.05537). A validation for U-shaped Swin Transformer.
 
 ## 1. Download pre-trained swin transformer model (Swin-T)
@@ -31,16 +31,3 @@ sh test.sh or python test.py --dataset Synapse --cfg configs/swin_tiny_patch4_wi
 ## References
 * [TransUnet](https://github.com/Beckschen/TransUNet)
 * [SwinTransformer](https://github.com/microsoft/Swin-Transformer)
-
-## Citation
-
-```bibtex
-@misc{cao2021swinunet,
-      title={Swin-Unet: Unet-like Pure Transformer for Medical Image Segmentation}, 
-      author={Hu Cao and Yueyue Wang and Joy Chen and Dongsheng Jiang and Xiaopeng Zhang and Qi Tian and Manning Wang},
-      year={2021},
-      eprint={2105.05537},
-      archivePrefix={arXiv},
-      primaryClass={eess.IV}
-}
-```

@@ -21,7 +21,7 @@ from .swin_unet_v2 import SwinTransformerSys
 logger = logging.getLogger(__name__)
 
 class SwinUnet(nn.Module):
-    def __init__(self, config, img_size=256, num_classes=21843, zero_head=False, vis=False):
+    def __init__(self, config, img_size=256, num_classes=1, zero_head=False, vis=False):
         super(SwinUnet, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head

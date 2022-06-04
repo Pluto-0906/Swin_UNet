@@ -16,14 +16,11 @@ _C.DATA.BATCH_SIZE = 128
 # Path to dataset, could be overwritten by command line argument
 _C.DATA.DATA_PATH = ''
 # Dataset name
-_C.DATA.DATASET = 'imagenet'
+_C.DATA.DATASET = 'spine'
 # Input image size
 _C.DATA.IMG_SIZE = 224
 # Interpolation to resize image (random, bilinear, bicubic)
 _C.DATA.INTERPOLATION = 'bicubic'
-# Use zipped dataset instead of folder dataset
-# could be overwritten by command line argument
-_C.DATA.ZIP_MODE = False
 # Cache Data in Memory, could be overwritten by command line argument
 _C.DATA.CACHE_MODE = 'part'
 # Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.
@@ -62,7 +59,7 @@ _C.MODEL.SWIN.NUM_HEADS = [3, 6, 12, 24]
 _C.MODEL.SWIN.WINDOW_SIZE = 7
 _C.MODEL.SWIN.MLP_RATIO = 4.
 _C.MODEL.SWIN.QKV_BIAS = True
-_C.MODEL.SWIN.QK_SCALE = None
+_C.MODEL.SWIN.QK_SCALE = True #TODO
 _C.MODEL.SWIN.APE = False
 _C.MODEL.SWIN.PATCH_NORM = True
 _C.MODEL.SWIN.FINAL_UPSAMPLE= "expand_first"
@@ -110,29 +107,29 @@ _C.TRAIN.OPTIMIZER.MOMENTUM = 0.9
 # -----------------------------------------------------------------------------
 # Augmentation settings
 # -----------------------------------------------------------------------------
-_C.AUG = CN()
-# Color jitter factor
-_C.AUG.COLOR_JITTER = 0.4
-# Use AutoAugment policy. "v0" or "original"
-_C.AUG.AUTO_AUGMENT = 'rand-m9-mstd0.5-inc1'
-# Random erase prob
-_C.AUG.REPROB = 0.25
-# Random erase mode
-_C.AUG.REMODE = 'pixel'
-# Random erase count
-_C.AUG.RECOUNT = 1
-# Mixup alpha, mixup enabled if > 0
-_C.AUG.MIXUP = 0.8
-# Cutmix alpha, cutmix enabled if > 0
-_C.AUG.CUTMIX = 1.0
-# Cutmix min/max ratio, overrides alpha and enables cutmix if set
-_C.AUG.CUTMIX_MINMAX = None
-# Probability of performing mixup or cutmix when either/both is enabled
-_C.AUG.MIXUP_PROB = 1.0
-# Probability of switching to cutmix when both mixup and cutmix enabled
-_C.AUG.MIXUP_SWITCH_PROB = 0.5
-# How to apply mixup/cutmix params. Per "batch", "pair", or "elem"
-_C.AUG.MIXUP_MODE = 'batch'
+# _C.AUG = CN()
+# # Color jitter factor
+# _C.AUG.COLOR_JITTER = 0.4
+# # Use AutoAugment policy. "v0" or "original"
+# _C.AUG.AUTO_AUGMENT = 'rand-m9-mstd0.5-inc1'
+# # Random erase prob
+# _C.AUG.REPROB = 0.25
+# # Random erase mode
+# _C.AUG.REMODE = 'pixel'
+# # Random erase count
+# _C.AUG.RECOUNT = 1
+# # Mixup alpha, mixup enabled if > 0
+# _C.AUG.MIXUP = 0.8
+# # Cutmix alpha, cutmix enabled if > 0
+# _C.AUG.CUTMIX = 1.0
+# # Cutmix min/max ratio, overrides alpha and enables cutmix if set
+# _C.AUG.CUTMIX_MINMAX = None
+# # Probability of performing mixup or cutmix when either/both is enabled
+# _C.AUG.MIXUP_PROB = 1.0
+# # Probability of switching to cutmix when both mixup and cutmix enabled
+# _C.AUG.MIXUP_SWITCH_PROB = 0.5
+# # How to apply mixup/cutmix params. Per "batch", "pair", or "elem"
+# _C.AUG.MIXUP_MODE = 'batch'
 
 # -----------------------------------------------------------------------------
 # Testing settings
@@ -190,8 +187,6 @@ def update_config(config, args):
     # merge from specific arguments
     if args.batch_size:
         config.DATA.BATCH_SIZE = args.batch_size
-    if args.zip:
-        config.DATA.ZIP_MODE = True
     if args.cache_mode:
         config.DATA.CACHE_MODE = args.cache_mode
     if args.resume:

@@ -5,19 +5,22 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
-import segmentation_models_pytorch as smp
+import utils.metrics as metrics
 from torch import optim
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader, random_split
 
-from custom_loss.dice_score import dice_loss
+from utils.custom_loss.dice_score import dice_loss
 from networks.vision_transformer import SwinUnet as ViT_seg
 from datasets.dataset_spine import Spine_Dataset
 from config import get_config
 
+remote_dir = '/home/pose3d/projs/STCN/UNet_Spine_Proj/UNet_Spine/data/'
+local_dir = './data/'
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--root_path', type=str,
-                    default='/home/pose3d/projs/STCN/UNet_Spine_Proj/UNet_Spine/data/', help='root dir for data')
+                    default=remote_dir, help='root dir for data')
 parser.add_argument('--dataset', type=str,
                     default='Spine', help='experiment_name')
 parser.add_argument('--num_classes', type=int,
@@ -70,8 +73,7 @@ class YasuoModel(pl.LightningModule):
         super().__init__()
         self.config = config
         self.args = args
-        self.model = net # TODO
-        # import pdb;pdb.set_trace()
+        self.model = net
         self.loss_fn = dice_loss()
         self.threshold = threshold
         self.base_lr = args.base_lr
@@ -108,7 +110,7 @@ class YasuoModel(pl.LightningModule):
 
         pred_mask = (output > self.threshold).type(torch.uint8)
 
-        tp, fp, fn, tn = smp.metrics.get_stats(
+        tp, fp, fn, tn = metrics.get_stats(
             pred_mask.long(), gt.long(), mode="binary")
 
         return {
@@ -126,10 +128,9 @@ class YasuoModel(pl.LightningModule):
         fn = torch.cat([x["fn"] for x in outputs])
         tn = torch.cat([x["tn"] for x in outputs])
 
-        rec = smp.metrics.recall(tp, fp, fn, tn, reduction="micro-imagewise")
-        prec = smp.metrics.precision(
-            tp, fp, fn, tn, reduction="micro-imagewise")
-        f1 = smp.metrics.f1_score(tp, fp, fn, tn, "micro-imagewise")
+        rec = metrics.recall(tp, fp, fn, tn, reduction="micro-imagewise")
+        prec = metrics.precision(tp, fp, fn, tn, reduction="micro-imagewise")
+        f1 = metrics.f1_score(tp, fp, fn, tn, "micro-imagewise")
 
         metrics = {
             # f"{stage}_per_image_iou": per_image_iou,
@@ -195,8 +196,8 @@ if __name__ == "__main__":
         dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
 
     # 3. generate dataloader
-    loader_args = dict(batch_size=args.batch_size,
-                       num_workers=16, pin_memory=True)
+    loader_args = dict(batch_size=args.batch_size, pin_memory=True)
+    
     # type: ignore os.cpu_count()
     train_dataloader = DataLoader(
         dataset=train_set, shuffle=True, **loader_args)
@@ -208,7 +209,7 @@ if __name__ == "__main__":
     model = YasuoModel(config, args, net)
 
     # 5. define a trainer
-    trainer = pl.Trainer(gpus=1, max_epochs=args.max_epochs)
+    trainer = pl.Trainer(max_epochs=args.max_epochs)
 
     # 6. train the network
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)

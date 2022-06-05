@@ -1,2 +1,12 @@
+# ignore vscode file and pycharm
 .vscode/
+.idea/
+
+# ignore pretrained weights
 pretrained_ckpt/
+
+# ignore exp files
+lightning_logs/
+
+# ignore all the __pycache__ folders
+**/__pycache__

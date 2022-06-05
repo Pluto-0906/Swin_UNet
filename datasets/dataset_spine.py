@@ -62,7 +62,7 @@ class Spine_Dataset(Dataset):
         label = self.load(label_file[0])
         
         # resize the img and label to (224, 224)
-        resize = transforms.Resize([224,244])
+        resize = transforms.Resize([224,224])
         img_ = resize(img)
         label_ = resize(label)
         

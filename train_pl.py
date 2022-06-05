@@ -1,8 +1,13 @@
 import os
+import argparse
+import random
+import numpy as np
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
+import segmentation_models_pytorch as smp
 from torch import optim
+import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader, random_split
 
 from custom_loss.dice_score import dice_loss
@@ -20,7 +25,7 @@ parser.add_argument('--num_classes', type=int,
 parser.add_argument('--output_dir', type=str,
                     default='/home/pose3d/projs/STCN/UNet_Spine_Proj/UNet_Spine/output', help='output dir')
 parser.add_argument('--max_epochs', type=int,
-                    default=150, help='maximum epoch number to train')
+                    default=100, help='maximum epoch number to train')
 parser.add_argument('--batch_size', type=int,
                     default=12, help='batch_size per gpu')
 parser.add_argument('--n_gpu', type=int, default=1, help='total gpu')
@@ -28,7 +33,8 @@ parser.add_argument('--deterministic', type=int,  default=1,
                     help='whether use deterministic training')
 parser.add_argument('--base_lr', type=float,  default=0.01,
                     help='segmentation network learning rate')
-parser.add_argument('--val_percent', type=float,  default=0.1, help='val_set percent')
+parser.add_argument('--val_percent', type=float,
+                    default=0.1, help='val_set percent')
 parser.add_argument('--img_size', type=int,
                     default=224, help='input patch size of network input')
 parser.add_argument('--seed', type=int,
@@ -58,13 +64,15 @@ parser.add_argument('--eval', action='store_true',
 parser.add_argument('--throughput', action='store_true',
                     help='Test throughput only')
 
+
 class YasuoModel(pl.LightningModule):
-    def __init__(self, config, args, threshold=0.5, **kwargs):
+    def __init__(self, config, args, net, threshold=0.5, **kwargs):
         super().__init__()
         self.config = config
         self.args = args
-        self.model = ViT_seg(config, img_size=args.img_size, num_classes=args.num_classes)
-        self.loss_fn = dice_loss() 
+        self.model = net # TODO
+        # import pdb;pdb.set_trace()
+        self.loss_fn = dice_loss()
         self.threshold = threshold
         self.base_lr = args.base_lr
 
@@ -74,7 +82,9 @@ class YasuoModel(pl.LightningModule):
         return output
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(self.model.parameters(), lr=base_lr, momentum=0.9, weight_decay=0.0001)
+        
+        optimizer = torch.optim.SGD(self.model.parameters(), lr=self.base_lr, momentum=0.9, weight_decay=0.0001)
+        
         scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer, T_0=250, T_mult=2, eta_min=0, last_epoch=-1
         )
@@ -98,7 +108,8 @@ class YasuoModel(pl.LightningModule):
 
         pred_mask = (output > self.threshold).type(torch.uint8)
 
-        tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), gt.long(), mode="binary")
+        tp, fp, fn, tn = smp.metrics.get_stats(
+            pred_mask.long(), gt.long(), mode="binary")
 
         return {
             "loss": loss,
@@ -114,9 +125,10 @@ class YasuoModel(pl.LightningModule):
         fp = torch.cat([x["fp"] for x in outputs])
         fn = torch.cat([x["fn"] for x in outputs])
         tn = torch.cat([x["tn"] for x in outputs])
-        
+
         rec = smp.metrics.recall(tp, fp, fn, tn, reduction="micro-imagewise")
-        prec = smp.metrics.precision(tp, fp, fn, tn, reduction="micro-imagewise")
+        prec = smp.metrics.precision(
+            tp, fp, fn, tn, reduction="micro-imagewise")
         f1 = smp.metrics.f1_score(tp, fp, fn, tn, "micro-imagewise")
 
         metrics = {
@@ -149,6 +161,9 @@ class YasuoModel(pl.LightningModule):
         return self.shared_epoch_end(outputs, "test")
 
 
+args = parser.parse_args()
+config = get_config(args)
+
 if __name__ == "__main__":
 
     if not args.deterministic:
@@ -162,14 +177,10 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-    
-    args = parser.parse_args()
-    config = get_config(args)
-    print(args)
-    
+
     images_dir = args.root_path + 'imgs/'
     labels_dir = args.root_path + 'masks/'
-    
+
     # 1. create dataset
     dataset = Spine_Dataset(
         images_dir=images_dir,
@@ -180,19 +191,24 @@ if __name__ == "__main__":
     # 2. split dataset
     n_val = int(len(dataset) * args.val_percent)
     n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+    train_set, val_set = random_split(
+        dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
 
     # 3. generate dataloader
-    loader_args = dict(batch_size=args.batch_size, num_workers=16, pin_memory=True)
-    train_dataloader = DataLoader(dataset=train_set, shuffle=True, **loader_args)  # type: ignore os.cpu_count()
+    loader_args = dict(batch_size=args.batch_size,
+                       num_workers=16, pin_memory=True)
+    # type: ignore os.cpu_count()
+    train_dataloader = DataLoader(
+        dataset=train_set, shuffle=True, **loader_args)
     val_dataloader = DataLoader(dataset=val_set, shuffle=False, **loader_args)
 
+    net = ViT_seg(config, img_size=args.img_size, num_classes=args.num_classes)
+    net.load_from(config)
     # 4. create a model
-    model = YoneModel(config,args)
-    model.load_from(config)
+    model = YasuoModel(config, args, net)
 
     # 5. define a trainer
-    trainer = pl.Trainer(gpus=1, max_epochs=args.num_epoch)
+    trainer = pl.Trainer(gpus=1, max_epochs=args.max_epochs)
 
     # 6. train the network
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)

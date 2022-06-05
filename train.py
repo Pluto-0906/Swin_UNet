@@ -92,6 +92,7 @@ if __name__ == "__main__":
     model = ViT_seg(config, img_size=args.img_size,
                   num_classes=args.num_classes).cuda()
     model.load_from(config)
+    import pdb;pdb.set_trace()
 
     # train
     trainer_spine(args, model, snapshot_path)

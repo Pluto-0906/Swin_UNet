@@ -10,3 +10,6 @@ lightning_logs/
 
 # ignore all the __pycache__ folders
 **/__pycache__
+
+# ignore visualization results
+/predicted_results

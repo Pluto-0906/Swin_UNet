@@ -1,72 +1,20 @@
 import os
-import argparse
 import random
 import numpy as np
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
-import utils.metrics as metrics
+import utils.metrics as metrics_
 from torch import optim
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader, random_split
+from torch.nn.modules.loss import CrossEntropyLoss
 
 from utils.custom_loss.dice_score import dice_loss
 from networks.vision_transformer import SwinUnet as ViT_seg
 from datasets.dataset_spine import Spine_Dataset
 from config import get_config
-
-remote_dir = '/home/pose3d/projs/STCN/UNet_Spine_Proj/UNet_Spine/data/'
-local_dir = './data/'
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--root_path', type=str,
-                    default=remote_dir, help='root dir for data')
-parser.add_argument('--dataset', type=str,
-                    default='Spine', help='experiment_name')
-parser.add_argument('--num_classes', type=int,
-                    default=1, help='output channel of network')
-parser.add_argument('--output_dir', type=str,
-                    default='/home/pose3d/projs/STCN/UNet_Spine_Proj/UNet_Spine/output', help='output dir')
-parser.add_argument('--max_epochs', type=int,
-                    default=100, help='maximum epoch number to train')
-parser.add_argument('--batch_size', type=int,
-                    default=12, help='batch_size per gpu')
-parser.add_argument('--n_gpu', type=int, default=1, help='total gpu')
-parser.add_argument('--deterministic', type=int,  default=1,
-                    help='whether use deterministic training')
-parser.add_argument('--base_lr', type=float,  default=0.01,
-                    help='segmentation network learning rate')
-parser.add_argument('--val_percent', type=float,
-                    default=0.1, help='val_set percent')
-parser.add_argument('--img_size', type=int,
-                    default=224, help='input patch size of network input')
-parser.add_argument('--seed', type=int,
-                    default=1234, help='random seed')
-parser.add_argument('--cfg', type=str, default="./configs/swin_tiny_patch4_window7_224_lite.yaml",
-                    metavar="FILE", help='path to config file', )
-parser.add_argument(
-    "--opts",
-    help="Modify config options by adding 'KEY VALUE' pairs.",
-    default=None,
-    nargs='+',
-)
-parser.add_argument('--cache-mode', type=str, default='part', choices=['no', 'full', 'part'],
-                    help='no: no cache, '
-                    'full: cache all data, '
-                    'part: sharding the dataset into nonoverlapping pieces and only cache one piece')
-parser.add_argument('--resume', help='resume from checkpoint')
-parser.add_argument('--accumulation-steps', type=int,
-                    help="gradient accumulation steps")
-parser.add_argument('--use-checkpoint', action='store_true',
-                    help="whether to use gradient checkpointing to save memory")
-parser.add_argument('--amp-opt-level', type=str, default='O1', choices=['O0', 'O1', 'O2'],
-                    help='mixed precision opt level, if O0, no amp is used')
-parser.add_argument('--tag', help='tag of experiment')
-parser.add_argument('--eval', action='store_true',
-                    help='Perform evaluation only')
-parser.add_argument('--throughput', action='store_true',
-                    help='Test throughput only')
-
+from parser_config import get_parser
 
 class YasuoModel(pl.LightningModule):
     def __init__(self, config, args, net, threshold=0.5, **kwargs):
@@ -74,7 +22,8 @@ class YasuoModel(pl.LightningModule):
         self.config = config
         self.args = args
         self.model = net
-        self.loss_fn = dice_loss()
+        self.loss_fn1 = dice_loss()
+        self.loss_fn2 = CrossEntropyLoss()
         self.threshold = threshold
         self.base_lr = args.base_lr
 
@@ -83,13 +32,12 @@ class YasuoModel(pl.LightningModule):
         output = F.sigmoid(output)
         return output
 
-    def configure_optimizers(self):
-        
-        optimizer = torch.optim.SGD(self.model.parameters(), lr=self.base_lr, momentum=0.9, weight_decay=0.0001)
-        
+    def configure_optimizers(self):        
+        optimizer = optim.AdamW(self.model.parameters(), lr=self.base_lr, weight_decay=1e-8)
         scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer, T_0=250, T_mult=2, eta_min=0, last_epoch=-1
         )
+        
         return [optimizer], [scheduler]
 
     def shared_step(self, batch, stage):
@@ -104,13 +52,15 @@ class YasuoModel(pl.LightningModule):
         assert gt.ndim == 4
 
         output = self.forward(img)
+        
+        # import pdb; pdb.set_trace()
 
-        # Predicted mask contains logits, and loss_fn param `from_logits` is set to True
-        loss = self.loss_fn(output, gt)
+        loss = self.loss_fn1(output, gt) 
+        # + 0.4 * self.loss_fn2(output, gt)
 
         pred_mask = (output > self.threshold).type(torch.uint8)
 
-        tp, fp, fn, tn = metrics.get_stats(
+        tp, fp, fn, tn = metrics_.get_stats(
             pred_mask.long(), gt.long(), mode="binary")
 
         return {
@@ -128,9 +78,9 @@ class YasuoModel(pl.LightningModule):
         fn = torch.cat([x["fn"] for x in outputs])
         tn = torch.cat([x["tn"] for x in outputs])
 
-        rec = metrics.recall(tp, fp, fn, tn, reduction="micro-imagewise")
-        prec = metrics.precision(tp, fp, fn, tn, reduction="micro-imagewise")
-        f1 = metrics.f1_score(tp, fp, fn, tn, "micro-imagewise")
+        rec = metrics_.recall(tp, fp, fn, tn, reduction="micro-imagewise")
+        prec = metrics_.precision(tp, fp, fn, tn, reduction="micro-imagewise")
+        f1 = metrics_.f1_score(tp, fp, fn, tn, "micro-imagewise")
 
         metrics = {
             # f"{stage}_per_image_iou": per_image_iou,
@@ -162,11 +112,12 @@ class YasuoModel(pl.LightningModule):
         return self.shared_epoch_end(outputs, "test")
 
 
-args = parser.parse_args()
-config = get_config(args)
 
 if __name__ == "__main__":
-
+    
+    args = get_parser()
+    config = get_config(args)
+    
     if not args.deterministic:
         cudnn.benchmark = True
         cudnn.deterministic = False
@@ -209,7 +160,7 @@ if __name__ == "__main__":
     model = YasuoModel(config, args, net)
 
     # 5. define a trainer
-    trainer = pl.Trainer(max_epochs=args.max_epochs)
+    trainer = pl.Trainer(gpus=1, max_epochs=args.max_epochs)
 
     # 6. train the network
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
